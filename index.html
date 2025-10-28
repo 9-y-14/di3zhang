@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据可视化交互平台 - 第3章数据分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .control-group select, .control-group input {
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .control-group select:focus, .control-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 500px;
+            margin-bottom: 30px;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .chart-item {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            height: 400px;
+        }
+
+        .data-summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .data-summary h3 {
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 数据可视化交互平台</h1>
+            <p>基于第3章数据分析内容的交互式可视化展示</p>
+        </div>
+
+        <div class="dashboard">
+            <div class="controls">
+                <div class="control-group">
+                    <label for="chartType">图表类型</label>
+                    <select id="chartType">
+                        <option value="line">折线图</option>
+                        <option value="bar">柱状图</option>
+                        <option value="scatter">散点图</option>
+                        <option value="pie">饼图</option>
+                        <option value="radar">雷达图</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="xAxis">X轴辅助线</label>
+                    <select id="xAxis">
+                        <option value="none">无</option>
+                        <option value="average">平均值线</option>
+                        <option value="median">中位数线</option>
+                        <option value="quartile">四分位线</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="yAxis">Y轴辅助线</label>
+                    <select id="yAxis">
+                        <option value="none">无</option>
+                        <option value="average">平均值线</option>
+                        <option value="median">中位数线</option>
+                        <option value="trend">趋势线</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="guideOpacity">辅助线透明度</label>
+                    <input type="range" id="guideOpacity" min="0" max="100" value="50">
+                    <span id="opacityValue">50%</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="legendPosition">图例位置</label>
+                    <select id="legendPosition">
+                        <option value="top">顶部</option>
+                        <option value="right">右侧</option>
+                        <option value="bottom">底部</option>
+                        <option value="left">左侧</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button onclick="updateChart()">更新图表</button>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="mainChart"></canvas>
+            </div>
+
+            <div class="chart-grid">
+                <div class="chart-item">
+                    <canvas id="chart1"></canvas>
+                </div>
+                <div class="chart-item">
+                    <canvas id="chart2"></canvas>
+                </div>
+                <div class="chart-item">
+                    <canvas id="chart3"></canvas>
+                </div>
+                <div class="chart-item">
+                    <canvas id="chart4"></canvas>
+                </div>
+            </div>
+
+            <div class="data-summary">
+                <h3>📈 数据分析摘要</h3>
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="dataCount">0</div>
+                        <div class="stat-label">数据点数量</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="avgValue">0</div>
+                        <div class="stat-label">平均值</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="maxValue">0</div>
+                        <div class="stat-label">最大值</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="minValue">0</div>
+                        <div class="stat-label">最小值</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        // 使用真实数据
+        const sampleData = chapter3Data.timeSeries;
+
+        let mainChart, chart1, chart2, chart3, chart4;
+
+        // 初始化图表
+        function initCharts() {
+            // 主图表 - 正弦余弦曲线（基于第3章内容）
+            const mainCtx = document.getElementById('mainChart').getContext('2d');
+            mainChart = new Chart(mainCtx, {
+                type: 'line',
+                data: {
+                    labels: chapter3Data.sineCosine.x,
+                    datasets: [
+                        {
+                            label: 'sin(x)',
+                            data: chapter3Data.sineCosine.y1,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0,
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'cos(x)',
+                            data: chapter3Data.sineCosine.y2,
+                            borderColor: '#f093fb',
+                            backgroundColor: 'rgba(240, 147, 251, 0.1)',
+                            tension: 0,
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: getChartOptions()
+            });
+
+            // 图表1 - 阿里巴巴GMV数据
+            const ctx1 = document.getElementById('chart1').getContext('2d');
+            chart1 = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: chapter3Data.alibabaGMV.years,
+                    datasets: [{
+                        label: 'GMV(亿元)',
+                        data: chapter3Data.alibabaGMV.gmv,
+                        backgroundColor: '#4fd1c7',
+                        borderColor: '#4fd1c7',
+                        borderWidth: 1
+                    }]
+                },
+                options: getChartOptions()
+            });
+
+            // 图表2 - 果酱面包配料比例
+            const ctx2 = document.getElementById('chart2').getContext('2d');
+            chart2 = new Chart(ctx2, {
+                type: 'pie',
+                data: {
+                    labels: chapter3Data.breadIngredients.kinds,
+                    datasets: [{
+                        label: '重量(g)',
+                        data: chapter3Data.breadIngredients.weight,
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+                        ]
+                    }]
+                },
+                options: getChartOptions()
+            });
+
+            // 图表3 - 数据质量评估
+            const ctx3 = document.getElementById('chart3').getContext('2d');
+            chart3 = new Chart(ctx3, {
+                type: 'bar',
+                data: {
+                    labels: chapter3Data.dataQuality.dimensions,
+                    datasets: [{
+                        label: '质量评分',
+                        data: chapter3Data.dataQuality.scores,
+                        backgroundColor: '#667eea',
+                        borderColor: '#667eea',
+                        borderWidth: 1
+                    }]
+                },
+                options: getChartOptions()
+            });
+
+            // 图表4 - 统计指标重要性
+            const ctx4 = document.getElementById('chart4').getContext('2d');
+            chart4 = new Chart(ctx4, {
+                type: 'doughnut',
+                data: {
+                    labels: chapter3Data.statisticalMeasures.measures,
+                    datasets: [{
+                        label: '重要性评分',
+                        data: chapter3Data.statisticalMeasures.importance,
+                        backgroundColor: [
+                            '#667eea', '#764ba2', '#f093fb', '#4fd1c7', '#f6ad55', '#fc8181'
+                        ]
+                    }]
+                },
+                options: getChartOptions()
+            });
+
+            updateSummaryStats();
+        }
+
+        // 获取图表配置
+        function getChartOptions() {
+            const opacity = document.getElementById('guideOpacity').value / 100;
+            const legendPos = document.getElementById('legendPosition').value;
+            
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: legendPos,
+                        labels: {
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            };
+        }
+
+        // 更新图表
+        function updateChart() {
+            const chartType = document.getElementById('chartType').value;
+            const xAxis = document.getElementById('xAxis').value;
+            const yAxis = document.getElementById('yAxis').value;
+            const opacity = document.getElementById('guideOpacity').value / 100;
+
+            // 更新主图表类型
+            mainChart.destroy();
+            const mainCtx = document.getElementById('mainChart').getContext('2d');
+            mainChart = new Chart(mainCtx, {
+                type: chartType,
+                data: {
+                    labels: sampleData.categories,
+                    datasets: [
+                        {
+                            label: '销售额',
+                            data: sampleData.sales,
+                            borderColor: '#667eea',
+                            backgroundColor: chartType === 'pie' || chartType === 'doughnut' ? 
+                                ['#667eea', '#764ba2', '#f093fb', '#4fd1c7', '#f6ad55'] : 
+                                'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: getChartOptions()
+            });
+
+            // 添加辅助线
+            addGuideLines(mainChart, xAxis, yAxis, opacity);
+
+            updateSummaryStats();
+        }
+
+        // 添加辅助线
+        function addGuideLines(chart, xAxis, yAxis, opacity) {
+            const scales = chart.scales;
+            const data = chapter3Data.timeSeries.sales;
+            
+            // 清除之前的辅助线
+            if (chart.options.plugins.annotation) {
+                chart.options.plugins.annotation.annotations = {};
+            }
+            
+            // 添加X轴辅助线
+            if (xAxis !== 'none') {
+                const xAnnotations = {};
+                
+                if (xAxis === 'average') {
+                    const avgX = dataUtils.calculateMean(data);
+                    xAnnotations.avgLine = {
+                        type: 'line',
+                        yMin: avgX,
+                        yMax: avgX,
+                        borderColor: 'rgba(255, 99, 132, ' + opacity + ')',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        label: {
+                            content: '平均值: ' + avgX.toFixed(1),
+                            enabled: true,
+                            position: 'end'
+                        }
+                    };
+                }
+                
+                if (xAxis === 'median') {
+                    const medianX = dataUtils.calculateMedian(data);
+                    xAnnotations.medianLine = {
+                        type: 'line',
+                        yMin: medianX,
+                        yMax: medianX,
+                        borderColor: 'rgba(54, 162, 235, ' + opacity + ')',
+                        borderWidth: 2,
+                        borderDash: [3, 3],
+                        label: {
+                            content: '中位数: ' + medianX,
+                            enabled: true,
+                            position: 'start'
+                        }
+                    };
+                }
+                
+                chart.options.plugins.annotation = {
+                    annotations: xAnnotations
+                };
+            }
+            
+            // 添加Y轴辅助线
+            if (yAxis !== 'none') {
+                const yAnnotations = chart.options.plugins.annotation?.annotations || {};
+                
+                if (yAxis === 'trend') {
+                    // 简单线性趋势线
+                    const n = data.length;
+                    const sumX = n * (n + 1) / 2;
+                    const sumY = data.reduce((a, b) => a + b, 0);
+                    const sumXY = data.reduce((sum, y, x) => sum + (x + 1) * y, 0);
+                    const sumX2 = n * (n + 1) * (2 * n + 1) / 6;
+                    
+                    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                    const intercept = (sumY - slope * sumX) / n;
+                    
+                    yAnnotations.trendLine = {
+                        type: 'line',
+                        mode: 'linear',
+                        scaleID: 'y',
+                        value: (ctx) => intercept + slope * (ctx.index + 1),
+                        borderColor: 'rgba(75, 192, 192, ' + opacity + ')',
+                        borderWidth: 2,
+                        label: {
+                            content: '趋势线',
+                            enabled: true
+                        }
+                    };
+                }
+                
+                chart.options.plugins.annotation.annotations = yAnnotations;
+            }
+            
+            chart.update();
+        }
+
+        // 更新统计摘要
+        function updateSummaryStats() {
+            const data = chapter3Data.timeSeries.sales;
+            const stats = {
+                count: data.length,
+                mean: dataUtils.calculateMean(data),
+                median: dataUtils.calculateMedian(data),
+                stdDev: dataUtils.calculateStdDev(data),
+                max: Math.max(...data),
+                min: Math.min(...data)
+            };
+            
+            document.getElementById('dataCount').textContent = stats.count;
+            document.getElementById('avgValue').textContent = stats.mean.toFixed(1);
+            document.getElementById('maxValue').textContent = stats.max;
+            document.getElementById('minValue').textContent = stats.min;
+            
+            // 更新额外的统计信息显示
+            const summaryStats = document.querySelector('.summary-stats');
+            if (!summaryStats.querySelector('.stat-median')) {
+                summaryStats.innerHTML += `
+                    <div class="stat-item">
+                        <div class="stat-value stat-median">${stats.median}</div>
+                        <div class="stat-label">中位数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value stat-stddev">${stats.stdDev.toFixed(1)}</div>
+                        <div class="stat-label">标准差</div>
+                    </div>
+                `;
+            } else {
+                document.querySelector('.stat-median').textContent = stats.median;
+                document.querySelector('.stat-stddev').textContent = stats.stdDev.toFixed(1);
+            }
+        }
+
+        // 初始化透明度显示
+        document.getElementById('guideOpacity').addEventListener('input', function() {
+            document.getElementById('opacityValue').textContent = this.value + '%';
+        });
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+        });
+
+        // 响应式调整
+        window.addEventListener('resize', function() {
+            if (mainChart) mainChart.resize();
+            if (chart1) chart1.resize();
+            if (chart2) chart2.resize();
+        });
+    </script>
+</body>
+</html>
